@@ -1,16 +1,16 @@
 import UIKit
 
 enum ShapeColor {
-  case purple, red, orange
+  case purple, red, green
   func uicolor() -> UIColor {
     switch self {
     case .purple: return UIColor.systemPurple
     case .red: return UIColor.systemRed
-    case .orange: return UIColor.systemIndigo
+    case .green: return UIColor.systemGreen
     }
   }
   static var allColors: [ShapeColor] {
-    return [.purple, .red, .orange]
+    return [.purple, .red, .green]
   }
 }
 enum ShapeNum: Int {
@@ -36,74 +36,70 @@ class ViewController: UIViewController {
 
   override func viewDidLoad() {
     super.viewDidLoad()
-    let button = UIButton(type: UIButton.ButtonType.infoLight)
-    button.frame = CGRect(x: 10, y: 60, width: 60, height: 40)
-    view.addSubview(button)
-
-    let board = SetBoard(frame: CGRect(x: 10, y: 100, width: view.bounds.width - 20, height: view.bounds.height - 110))
+    let board = BoardView(frame: CGRect(x: 10, y: 70, width: view.bounds.width - 20, height: view.bounds.height - 80))
     board.cleanAndLoadBoard()
     board.boardHeading()
     view.addSubview(board)
-
-    let deck = SetDeck()
-    deck.generate()
-    print(deck.cards.count)
   }
 }
 
-class SetCard: UIButton {
-  var setBoard: SetBoard?
+class CardView: UIButton {
+  var boardView: BoardView?
   var cardData: CardData!
   override var isSelected: Bool {
-      didSet {
-          if isSelected {
-            self.layer.borderColor = UIColor.blue.cgColor
-            self.backgroundColor = UIColor.blue.withAlphaComponent(0.03)
-          } else {
-            self.layer.borderColor = UIColor.black.cgColor
-            self.backgroundColor = UIColor.white
-          }
-          setBoard?.selectCard(cardData: cardData, selected: isSelected)
-
+    didSet {
+      if isSelected {
+        self.layer.borderColor = UIColor.systemBlue.cgColor
+        self.backgroundColor = UIColor.systemBlue.withAlphaComponent(0.03)
+      } else {
+        self.layer.borderColor = UIColor.lightGray.cgColor
+        self.backgroundColor = UIColor.white
       }
+      boardView?.selectCard(cardData: cardData, selected: isSelected)
+    }
   }
 
   override init(frame: CGRect) {
     super.init(frame: frame)
     
-    self.layer.borderColor = UIColor.black.cgColor
+    self.layer.borderColor = UIColor.lightGray.cgColor
     self.layer.borderWidth = 2
     self.layer.cornerRadius = 8
 
-    self.addTarget(self, action: #selector(tappedCard), for: .touchUpInside)
+    self.addTarget(self, action: #selector(tappedCard(_:)), for: .touchUpInside)
   }
 
   func presentShapes(cardData: CardData) {
     self.cardData = cardData
     if let shapeImage = UIImage(named: cardData.geometry.rawValue + cardData.filling.rawValue) {
+      
+      let ratio = shapeImage.size.height / shapeImage.size.width
+      let shapeWidth = max(bounds.width/6, 25)
+      let shapeHeight = shapeWidth * ratio
+
       for i in 1...cardData.num.rawValue {
 
         let shapeImageView = UIImageView(image: shapeImage.withRenderingMode(.alwaysTemplate))
         shapeImageView.tintColor = cardData.color.uicolor()
-        let shapesWidth = (shapeImage.size.width * CGFloat(cardData.num.rawValue)) + 4 * (CGFloat(cardData.num.rawValue) - 1)
+        let shapesWidth = (shapeWidth * CGFloat(cardData.num.rawValue)) + 4 * (CGFloat(cardData.num.rawValue) - 1)
 
         var prevShape: CGFloat = 0
         if i == 2 {
-          prevShape = shapeImage.size.width + 4
+          prevShape = shapeWidth + 4
         } else if i == 3 {
-          prevShape = (shapeImage.size.width + 4) * 2
+          prevShape = (shapeWidth + 4) * 2
         }
         
-        let y = (self.frame.height - shapeImage.size.height) / 2
-        let x = ((self.frame.width - shapesWidth) / 2) + prevShape
+        let y = (bounds.height - shapeHeight) / 2
+        let x = ((bounds.width - shapesWidth) / 2) + prevShape
 
-        shapeImageView.frame = CGRect(x: x, y: y, width: shapeImage.size.width, height: shapeImage.size.height)
+        shapeImageView.frame = CGRect(x: x, y: y, width: shapeWidth, height: shapeHeight)
         addSubview(shapeImageView)
       }
     }
   }
 
-  @objc func tappedCard() {
+  @objc func tappedCard(_ button: UIButton) {
     self.isSelected = !self.isSelected
   }
 
@@ -112,18 +108,23 @@ class SetCard: UIButton {
   }
 }
 
-class SetBoard: UIView {
+class BoardView: UIView {
   var selectedCards: [CardData] = []
   var boardCards: [CardData] = []
   var setCounter = 0
+  let deck = DeckData()
+  var hintCount = 0
+
+  var messageView: MessageView!
   let counterLabel = UILabel()
-  let announcementLabel = UILabel()
-  let deck = SetDeck()
+  let hintButton = UIButton(type: .custom)
 
   func cleanAndLoadBoard() {
-    while !hasAnySet() {
+    self.boardCards = []
+    self.selectedCards = []
+    while getFirstSet(cards: boardCards) == nil {
       for subview in subviews {
-        if let cardView = subview as? SetCard {
+        if let cardView = subview as? CardView {
           cardView.removeFromSuperview()
         }
       }
@@ -131,8 +132,8 @@ class SetBoard: UIView {
     }
   }
 
-  func loadBoard() {
-    let headingHeight: CGFloat = 60
+  private func loadBoard() {
+    let headingHeight: CGFloat = 74
     let colNum: CGFloat = 3
     let rowNum: CGFloat = 4
     let sp: CGFloat = 8
@@ -143,47 +144,105 @@ class SetBoard: UIView {
         let x = (cardWidth + sp) * CGFloat(col)
         let y = (cardHeight + sp) * CGFloat(row) + headingHeight
         let frame = CGRect(x: x, y: y, width: cardWidth, height: cardHeight)
-        let cardView = SetCard(frame: frame)
-        cardView.setBoard = self
+        let cardView = CardView(frame: frame)
+        cardView.boardView = self
         if let cardData = deck.getRandomCard() {
           boardCards.append(cardData)
           cardView.presentShapes(cardData: cardData)
         }
-        self.addSubview(cardView)
-      }
-    }
-  }
-
-  func animateSet(completion: @escaping () -> Void) {
-    self.isUserInteractionEnabled = false
-    UIView.animate(withDuration: 1, delay: 0.1, options: [], animations: {
-      self.announcementLabel.alpha = 1
-    }) { (done) in
-      DispatchQueue.main.asyncAfter(deadline: DispatchTime.now() + 0.5) {
-        self.announcementLabel.alpha = 0
-        self.isUserInteractionEnabled = true
-        completion()
+        self.insertSubview(cardView, at: 0)
       }
     }
   }
 
   func boardHeading() {
-    counterLabel.frame = CGRect(x: 10, y: 0, width: self.bounds.width, height: 60)
+
+    let fontSize: CGFloat = UIDevice.current.userInterfaceIdiom == .pad ? 30 : 16
+    let space: CGFloat = UIDevice.current.userInterfaceIdiom == .pad ? 30 : 16
+
+    hintButton.setTitle("Hints: 0", for: .normal)
+    hintButton.setTitleColor(UIColor.systemBlue, for: .normal)
+    hintButton.addTarget(self, action: #selector(tappedHint(_:)), for: .touchUpInside)
+
+    if let label = hintButton.titleLabel {
+      label.font = UIFont.systemFont(ofSize: fontSize)
+      label.sizeToFit()
+      hintButton.frame = CGRect(x: 0, y: 10, width: label.frame.width, height: label.frame.height)
+    }
+    self.addSubview(hintButton)
+
     counterLabel.text = "Sets: " + String(setCounter)
+    counterLabel.textColor = UIColor.systemPurple
+    counterLabel.font = UIFont.systemFont(ofSize: fontSize)
+    counterLabel.sizeToFit()
+    counterLabel.frame = CGRect(x: hintButton.frame.maxX + space, y: 10, width: counterLabel.frame.width, height: counterLabel.frame.height)
     self.addSubview(counterLabel)
 
-    announcementLabel.frame = CGRect(x: 0, y: 0, width: self.bounds.width, height: self.bounds.height)
-    announcementLabel.text = "SET"
-    announcementLabel.font = UIFont.boldSystemFont(ofSize: 80)
-    announcementLabel.backgroundColor = UIColor.systemPurple.withAlphaComponent(0.2)
-    announcementLabel.textAlignment = .center
-    announcementLabel.alpha = 0
-    self.addSubview(announcementLabel)
+    let howToPlayButton = UIButton(type: .custom)
+    howToPlayButton.setTitle("How To Play", for: .normal)
+    howToPlayButton.setTitleColor(UIColor.systemBlue, for: .normal)
+    howToPlayButton.addTarget(self, action: #selector(tappedHowToPlay(_:)), for: .touchUpInside)
 
+    if let label = howToPlayButton.titleLabel {
+      label.font = UIFont.systemFont(ofSize: fontSize - 2)
+      label.sizeToFit()
+      howToPlayButton.frame = CGRect(x: counterLabel.frame.maxX + space, y: 10, width: label.frame.width, height: label.frame.height)
+    }
+    self.addSubview(howToPlayButton)
+
+    let restartButton = UIButton(type: .custom)
+    restartButton.setTitle("Restart Game", for: .normal)
+    restartButton.setTitleColor(UIColor.systemBlue, for: .normal)
+    restartButton.layer.borderColor = UIColor.lightGray.cgColor
+    restartButton.layer.borderWidth = 1
+    restartButton.addTarget(self, action: #selector(tappedRestart(_:)), for: .touchUpInside)
+
+    if let label = restartButton.titleLabel {
+      label.font = UIFont.systemFont(ofSize: fontSize)
+      label.sizeToFit()
+      restartButton.frame = CGRect(x: bounds.width - label.frame.width - 50, y: 0, width: label.frame.width + 40, height: label.frame.height + 20)
+    }
+    self.addSubview(restartButton)
+
+    messageView = MessageView(frame: CGRect(x: 0, y: 60, width: bounds.width, height: bounds.height - 70))
+    self.addSubview(messageView)
+  }
+
+  @objc func tappedHowToPlay(_ button: UIButton) {
+    messageView.showHowToPlay()
+  }
+
+  @objc func tappedRestart(_ button: UIButton) {
+    let board = BoardView(frame: frame)
+    board.cleanAndLoadBoard()
+    board.boardHeading()
+    superview?.addSubview(board)
+    self.removeFromSuperview()
+  }
+
+  @objc func tappedHint(_ button: UIButton) {
+    guard let hintSet = getFirstSet(cards: boardCards) else { return }
+
+    for subview in subviews {
+      if let cardView = subview as? CardView {
+        cardView.isSelected = false
+        if hintCount < 2 && cardView.cardData.isEqual(to: hintSet.0) {
+          cardView.isSelected = true
+        } else if hintCount == 1 && cardView.cardData.isEqual(to: hintSet.1) {
+          cardView.isSelected = true
+        }
+      }
+    }
+
+    if hintCount < 2 {
+      hintCount += 1
+    } else {
+      hintCount = 0
+    }
+    hintButton.setTitle(" Hints: \(hintCount)", for: .normal)
   }
 
   func selectCard(cardData: CardData, selected: Bool) {
-    print("card is selected", cardData, selected)
     if selected {
       selectedCards.append(cardData)
     } else {
@@ -195,11 +254,12 @@ class SetBoard: UIView {
       }
     }
     if selectedCards.count >= 3 {
+      hintCount = 0
+      hintButton.setTitle(" Hints: \(hintCount)", for: .normal)
       if checkSet() {
         setCounter += 1
         counterLabel.text = "Sets: " + String(setCounter)
-        announcementLabel.text = "SET"
-        animateSet {
+        messageView.showSet {
           for selectedCard in self.selectedCards{
             let index = self.boardCards.firstIndex { cardData -> Bool in
               return cardData.isEqual(to: selectedCard)
@@ -209,23 +269,25 @@ class SetBoard: UIView {
             }
           }
           self.selectedCards.removeAll()
-          self.replaceSet()
+          DispatchQueue.main.async {
+            self.replaceSet()
+          }
         }
       } else {
-        // TODO: show not a set message
-        print("not a set")
-        for subview in subviews {
-          if let cardView = subview as? SetCard, cardView.isSelected {
-            cardView.isSelected = false
+        messageView.showNotASet {
+          for subview in self.subviews {
+            if let cardView = subview as? CardView, cardView.isSelected {
+              cardView.isSelected = false
+            }
           }
         }
       }
     }
   }
 
-  func replaceSet() {
+  private func replaceSet() {
     for subview in subviews {
-      if let cardView = subview as? SetCard, cardView.isSelected {
+      if let cardView = subview as? CardView, cardView.isSelected {
         cardView.isSelected = false
         for sv in cardView.subviews {
           sv.removeFromSuperview()
@@ -236,10 +298,15 @@ class SetBoard: UIView {
         }
       }
     }
-    while !hasAnySet() {
-      announcementLabel.text = "No sets found /n Reshuffling"
-      animateSet {
-        self.cleanAndLoadBoard()
+    if getFirstSet(cards: boardCards) == nil {
+      let setInDeck = getFirstSet(cards: deck.cards)
+      if setInDeck == nil {
+        messageView.showGameOver(counter: self.setCounter) {}
+      } else {
+        messageView.showNoSets {
+          self.deck.cards.append(contentsOf: self.boardCards)
+          self.cleanAndLoadBoard()
+        }
       }
     }
   }
@@ -254,23 +321,23 @@ class SetBoard: UIView {
     let geometrySet = ((card1.geometry == card2.geometry) && (card1.geometry == card3.geometry)) || ((card1.geometry != card2.geometry) && (card1.geometry != card3.geometry) && (card2.geometry != card3.geometry))
     let numSet = ((card1.num == card2.num) && (card1.num == card3.num)) || ((card1.num != card2.num) && (card1.num != card3.num) && (card2.num != card3.num))
 
-    return colorSet && fillingSet && geometrySet && numSet
+    return colorSet && fillingSet && geometrySet && numSet  // || true
   }
 
-  func hasAnySet() -> Bool{
-    if boardCards.count == 0 {
-      return false
+  func getFirstSet(cards: [CardData]) -> (CardData, CardData, CardData)? {
+    if cards.count < 3 {
+      return nil
     }
-    for cardA in 0..<(boardCards.count - 2) {
-      for cardB in 1..<(boardCards.count - 1) {
-        for cardC in 2..<boardCards.count {
-          if checkSet(card1: boardCards[cardA], card2: boardCards[cardB], card3: boardCards[cardC]) {
-            return true
+    for cardA in 0..<(cards.count - 2) {
+      for cardB in (cardA + 1)..<(cards.count - 1) {
+        for cardC in (cardB + 1)..<cards.count {
+          if checkSet(card1: cards[cardA], card2: cards[cardB], card3: cards[cardC]) {
+            return (cards[cardA], cards[cardB], cards[cardC])
           }
         }
       }
     }
-    return false
+    return nil
   }
 }
 
@@ -285,25 +352,26 @@ struct CardData {
   }
 }
 
-class SetDeck {
+class DeckData {
   var cards: [CardData] = []
 
   init() {
     generate()
   }
 
-  func generate() {
+  private func generate() {
+    cards = []
     for num in ShapeNum.allNums {
       for color in ShapeColor.allColors {
         for geometry in ShapeGeometry.allGeometry {
-//          for filling in ShapeFilling.allFillings {
-        let cardData = CardData(num: num, color: color, filling: .empty, geometry: geometry)
+          for filling in ShapeFilling.allFillings {
+          let cardData = CardData(num: num, color: color, filling: filling, geometry: geometry)
             cards.append(cardData)
           }
         }
       }
     }
-//  }
+  }
 
   func getRandomCard() -> CardData? {
     guard cards.count > 0 else {
@@ -312,6 +380,107 @@ class SetDeck {
     let randomInt = Int.random(in: 0..<cards.count)
     let card = cards.remove(at: randomInt)
     return card
+  }
+}
+
+// Announcement View
+class MessageView: UIView {
+
+  let label = UILabel()
+
+  override init(frame: CGRect) {
+    super.init(frame: frame)
+
+    self.backgroundColor = UIColor.black.withAlphaComponent(0.4)
+
+    let h: CGFloat = UIDevice.current.userInterfaceIdiom == .pad ? 500 : 300
+    label.frame = CGRect(x: 16, y: (bounds.height - h) / 2, width: bounds.width - 32, height: h)
+    label.numberOfLines = 0
+    label.textAlignment = .center
+    label.layer.cornerRadius = 30
+    label.clipsToBounds = true
+    label.textColor = .systemPurple
+    label.backgroundColor = UIColor.white.withAlphaComponent(0.8)
+
+    self.addSubview(label)
+
+    self.alpha = 0
+  }
+
+  required init?(coder: NSCoder) {
+    fatalError("init(coder:) has not been implemented")
+  }
+
+  private func animateMessage(duration: TimeInterval? = nil, completion: @escaping () -> Void) {
+    UIView.animate(withDuration: 0.3, delay: 0.02, options: [], animations: {  // todo: 1
+      self.alpha = 1
+    }) { (done) in
+
+      guard let duration = duration else { return }
+
+      DispatchQueue.main.asyncAfter(deadline: DispatchTime.now() + duration) {
+        self.alpha = 0
+        completion()
+      }
+    }
+  }
+
+  func showHowToPlay() {
+    label.font = UIFont.boldSystemFont(ofSize: UIDevice.current.userInterfaceIdiom == .pad ? 30 : 16)
+    label.text = """
+      The object of the game is
+      to identify a SET of 3 cards.
+
+      A SET consists of 3 cards in which each
+      of the card's features (color, shape,
+      fill and number of items), looked
+      at one-by-one, are the same on each
+      card, or, are different on each card.
+    """
+
+    let button = UIButton(type: .custom)
+    button.frame = CGRect(x: 0, y: label.frame.minY - 60, width: bounds.width, height: 50)
+    button.setTitle("Close", for: .normal)
+    button.tintColor = UIColor.systemBlue
+    button.titleLabel?.font = UIFont.boldSystemFont(ofSize: UIDevice.current.userInterfaceIdiom == .pad ? 30 : 16)
+    button.addTarget(self, action: #selector(tappedClose(_:)), for: .touchUpInside)
+    self.addSubview(button)
+
+    animateMessage {}
+  }
+
+  func showSet(duration: TimeInterval = 0.5, completion: @escaping () -> Void) {
+    label.text = "SET!"
+    label.font = UIFont.boldSystemFont(ofSize: 80)
+    animateMessage(duration: duration, completion: completion)
+  }
+
+  func showNotASet(duration: TimeInterval = 0.5, completion: @escaping () -> Void) {
+    label.text = "Not a set \n\n Try again..."
+    label.font = UIFont.boldSystemFont(ofSize: 50)
+    animateMessage(duration: duration, completion: completion)
+  }
+
+  func showGameOver(counter: Int, completion: @escaping () -> Void) {
+    label.text = "Game Over \n You got: \(counter) sets!"
+    label.font = UIFont.boldSystemFont(ofSize: 50)
+    animateMessage(completion: completion)
+  }
+
+  func showNoSets(duration: TimeInterval = 2, completion: @escaping () -> Void) {
+    label.text = "No sets found \nReshuffling..."
+    label.font = UIFont.boldSystemFont(ofSize: 50)
+    animateMessage(duration: duration, completion: completion)
+  }
+
+  @objc func tappedClose(_ button: UIButton) {
+    let button = self.subviews.first { view -> Bool in
+      view is UIButton
+    }
+    UIView.animate(withDuration: 0.5) {
+      self.alpha = 0
+      button?.removeFromSuperview()
+    }
   }
 }
 
