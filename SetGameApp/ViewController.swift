@@ -160,7 +160,7 @@ class BoardView: UIView {
     let fontSize: CGFloat = UIDevice.current.userInterfaceIdiom == .pad ? 30 : 16
     let space: CGFloat = UIDevice.current.userInterfaceIdiom == .pad ? 30 : 16
 
-    hintButton.setTitle("Hints: 0", for: .normal)
+    hintButton.setTitle("Hint", for: .normal)
     hintButton.setTitleColor(UIColor.systemBlue, for: .normal)
     hintButton.addTarget(self, action: #selector(tappedHint(_:)), for: .touchUpInside)
 
@@ -175,7 +175,7 @@ class BoardView: UIView {
     counterLabel.textColor = UIColor.systemPurple
     counterLabel.font = UIFont.systemFont(ofSize: fontSize)
     counterLabel.sizeToFit()
-    counterLabel.frame = CGRect(x: hintButton.frame.maxX + space, y: 10, width: counterLabel.frame.width, height: counterLabel.frame.height)
+    counterLabel.frame = CGRect(x: hintButton.frame.maxX + space, y: 10, width: counterLabel.frame.width + 10, height: counterLabel.frame.height)
     self.addSubview(counterLabel)
 
     let howToPlayButton = UIButton(type: .custom)
@@ -239,7 +239,6 @@ class BoardView: UIView {
     } else {
       hintCount = 0
     }
-    hintButton.setTitle(" Hints: \(hintCount)", for: .normal)
   }
 
   func selectCard(cardData: CardData, selected: Bool) {
@@ -255,7 +254,6 @@ class BoardView: UIView {
     }
     if selectedCards.count >= 3 {
       hintCount = 0
-      hintButton.setTitle(" Hints: \(hintCount)", for: .normal)
       if checkSet() {
         setCounter += 1
         counterLabel.text = "Sets: " + String(setCounter)
