@@ -1,2 +1,6 @@
-# SetGamePlayground
-Playground for Set Game - WWDC 2020 - Student Challenge
+# Set Playground
+WWDC 2020 - Student Challenge
+
+* [Playground](playground/) (latest)
+* [App](app/)
+
